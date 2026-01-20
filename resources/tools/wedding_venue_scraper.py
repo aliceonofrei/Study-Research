@@ -313,26 +313,41 @@ class TheKnotVenueScraper:
     def click_next_page(self) -> bool:
         """Click the next page button if available"""
         try:
+            # Scroll to bottom first to ensure pagination is visible
+            self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            time.sleep(2)
+
             # The Knot uses: <a aria-label="Go to next page">
-            next_button_selector = "a[aria-label='Go to next page']"
+            # Try multiple variations to be safe
+            selectors_to_try = [
+                "a[aria-label='Go to next page']",
+                "a[aria-label*='next page']",
+                "a[aria-label*='Next page']",
+            ]
 
-            try:
-                next_button = self.driver.find_element(By.CSS_SELECTOR, next_button_selector)
+            for selector in selectors_to_try:
+                try:
+                    next_button = self.driver.find_element(By.CSS_SELECTOR, selector)
 
-                # Scroll to button and click
-                self.driver.execute_script("arguments[0].scrollIntoView(true);", next_button)
-                time.sleep(1)
+                    print(f"  🔍 Found next button with selector: {selector}")
 
-                # Click using JavaScript to avoid any overlay issues
-                self.driver.execute_script("arguments[0].click();", next_button)
+                    # Scroll to button and click
+                    self.driver.execute_script("arguments[0].scrollIntoView(true);", next_button)
+                    time.sleep(1)
 
-                # Wait for new page to load
-                time.sleep(3)
-                return True
+                    # Click using JavaScript to avoid any overlay issues
+                    self.driver.execute_script("arguments[0].click();", next_button)
 
-            except NoSuchElementException:
-                # No next button found - we're on the last page
-                return False
+                    # Wait for new page to load
+                    time.sleep(3)
+                    return True
+
+                except NoSuchElementException:
+                    continue
+
+            # No next button found with any selector
+            print(f"  ℹ️  No next page button found - reached last page")
+            return False
 
         except Exception as e:
             print(f"  ⚠️  Error clicking next page: {e}")
