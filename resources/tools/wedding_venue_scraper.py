@@ -384,7 +384,7 @@ class TheKnotVenueScraper:
             print(f"    ❌ Error with {method_name}: {e}")
             return False
 
-    def click_next_page(self, current_page: int) -> bool:
+    def click_next_page(self, current_page: int, seen_venue_keys: set) -> bool:
         """Navigate to the next page using multiple strategies"""
         try:
             # Scroll to bottom first to ensure pagination is visible
@@ -498,12 +498,26 @@ class TheKnotVenueScraper:
                         EC.presence_of_element_located((By.CSS_SELECTOR, "section[data-testid='vendor-card-base']"))
                     )
 
-                    new_venue = self.driver.find_element(By.CSS_SELECTOR, "section[data-testid='vendor-card-base'] [class*='vendor-name']")
-                    new_name = new_venue.text.strip()
+                    new_venue_elem = self.driver.find_element(By.CSS_SELECTOR, "section[data-testid='vendor-card-base']")
+                    new_venue_name = new_venue_elem.find_element(By.CSS_SELECTOR, "[class*='vendor-name']").text.strip()
 
-                    if original_name and new_name and new_name != original_name:
-                        print(f"  ✅ URL navigation worked! ('{original_name[:25]}...' → '{new_name[:25]}...')")
-                        return True
+                    # Get location too for better verification
+                    try:
+                        new_venue_location = new_venue_elem.find_element(By.CSS_SELECTOR, "[class*='location-text'] [class*='sr-only']").text.strip()
+                    except:
+                        new_venue_location = ""
+
+                    new_venue_key = (new_venue_name, new_venue_location)
+
+                    # Check if content changed AND we haven't seen this venue before
+                    if original_name and new_venue_name and new_venue_name != original_name:
+                        if new_venue_key in seen_venue_keys:
+                            print(f"  ⚠️  First venue is a duplicate - navigation looped back!")
+                            print(f"      Venue: '{new_venue_name[:40]}...'")
+                            continue  # Try next URL parameter
+                        else:
+                            print(f"  ✅ URL navigation worked! ('{original_name[:25]}...' → '{new_venue_name[:25]}...')")
+                            return True
                 except:
                     continue
 
@@ -570,7 +584,7 @@ class TheKnotVenueScraper:
                     consecutive_duplicate_pages = 0
 
                 # Try to go to next page
-                if not self.click_next_page(page_num):
+                if not self.click_next_page(page_num, seen_venue_keys):
                     print(f"  ✅ Reached last page")
                     break
 
