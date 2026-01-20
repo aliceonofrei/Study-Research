@@ -372,7 +372,7 @@ class TheKnotVenueScraper:
 
         url = self.format_city_url(city, state)
         city_venues = []
-        seen_venue_names = set()  # Track venue names to detect duplicates
+        seen_venues = set()  # Track name+location to detect duplicates
         page_num = 1
         consecutive_duplicate_pages = 0  # Count pages with all duplicates
 
@@ -390,11 +390,15 @@ class TheKnotVenueScraper:
                 venues = self.get_venues_on_page()
 
                 # Check for duplicate venues (indicates we're looping)
+                # Use name+location as unique identifier
                 new_venues_count = 0
                 for venue in venues:
                     venue_name = venue.get('name', '')
-                    if venue_name and venue_name not in seen_venue_names:
-                        seen_venue_names.add(venue_name)
+                    venue_location = venue.get('location', '')
+                    venue_key = (venue_name, venue_location)
+
+                    if venue_key not in seen_venues:
+                        seen_venues.add(venue_key)
                         venue['search_city'] = city
                         venue['search_state'] = state
                         city_venues.append(venue)
