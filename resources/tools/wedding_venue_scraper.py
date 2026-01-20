@@ -306,7 +306,13 @@ class TheKnotVenueScraper:
                     current_venue_elements = self.driver.find_elements(By.CSS_SELECTOR, "section[data-testid='vendor-card-base']")
 
                     if idx < len(current_venue_elements):
-                        venue_data = self.extract_venue_data(current_venue_elements[idx])
+                        venue_elem = current_venue_elements[idx]
+
+                        # CRITICAL: Scroll venue into view to trigger lazy loading
+                        self.driver.execute_script("arguments[0].scrollIntoView({block: 'center', behavior: 'smooth'});", venue_elem)
+                        time.sleep(0.3)  # Brief wait for content to load
+
+                        venue_data = self.extract_venue_data(venue_elem)
                         if venue_data:
                             venues.append(venue_data)
 
@@ -319,7 +325,13 @@ class TheKnotVenueScraper:
                     try:
                         current_venue_elements = self.driver.find_elements(By.CSS_SELECTOR, "section[data-testid='vendor-card-base']")
                         if idx < len(current_venue_elements):
-                            venue_data = self.extract_venue_data(current_venue_elements[idx])
+                            venue_elem = current_venue_elements[idx]
+
+                            # Scroll into view for lazy loading
+                            self.driver.execute_script("arguments[0].scrollIntoView({block: 'center', behavior: 'smooth'});", venue_elem)
+                            time.sleep(0.3)
+
+                            venue_data = self.extract_venue_data(venue_elem)
                             if venue_data:
                                 venues.append(venue_data)
                     except:
