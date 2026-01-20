@@ -285,14 +285,20 @@ class TheKnotVenueScraper:
             venue_elements = self.driver.find_elements(By.CSS_SELECTOR, "section[data-testid='vendor-card-base']")
 
             print(f"  Found {len(venue_elements)} venue cards on page")
+            print(f"  Extracting venue data...", end='', flush=True)
 
-            for venue_element in venue_elements:
+            for idx, venue_element in enumerate(venue_elements, 1):
                 try:
                     venue_data = self.extract_venue_data(venue_element)
                     if venue_data:
                         venues.append(venue_data)
+                    # Show progress every 10 venues
+                    if idx % 10 == 0 or idx == len(venue_elements):
+                        print(f"\r  Extracting venue data... {idx}/{len(venue_elements)}", end='', flush=True)
                 except StaleElementReferenceException:
                     continue
+
+            print()  # New line after progress
 
         except Exception as e:
             print(f"  ❌ Error getting venues: {e}")
