@@ -335,13 +335,15 @@ class TheKnotVenueScraper:
     def try_click_button(self, button, method_name: str) -> bool:
         """Try clicking a button using a specific method and verify the page changed"""
         try:
-            # Get current first venue for comparison
+            # Get reference to first venue element (not just text) for staleness detection
             try:
-                first_venue = self.driver.find_element(By.CSS_SELECTOR, "section[data-testid='vendor-card-base'] [class*='vendor-name']")
-                original_venue_name = first_venue.text.strip()
+                first_venue_elem = self.driver.find_element(By.CSS_SELECTOR, "section[data-testid='vendor-card-base']")
+                original_venue_name = first_venue_elem.find_element(By.CSS_SELECTOR, "[class*='vendor-name']").text.strip()
             except:
+                first_venue_elem = None
                 original_venue_name = ""
 
+            # Perform the click
             if method_name == "javascript":
                 self.driver.execute_script("arguments[0].click();", button)
             elif method_name == "action_chains":
@@ -350,12 +352,20 @@ class TheKnotVenueScraper:
             elif method_name == "regular":
                 button.click()
 
-            print(f"    ⏳ Clicked with {method_name}, waiting for response...")
+            print(f"    ⏳ Clicked with {method_name}, waiting for DOM update...")
 
-            # Wait longer for JavaScript to update the page
-            time.sleep(5)
+            # Wait for the element to become stale (indicating page updated)
+            if first_venue_elem:
+                try:
+                    WebDriverWait(self.driver, 10).until(EC.staleness_of(first_venue_elem))
+                    print(f"    ✓ DOM updated (element became stale)")
+                except TimeoutException:
+                    print(f"    ⚠️  Element didn't become stale after {method_name} click")
 
-            # Check if content changed
+            # Additional wait for new content to render
+            time.sleep(2)
+
+            # Verify content actually changed by comparing venue names
             try:
                 new_first_venue = self.driver.find_element(By.CSS_SELECTOR, "section[data-testid='vendor-card-base'] [class*='vendor-name']")
                 new_venue_name = new_first_venue.text.strip()
@@ -364,7 +374,7 @@ class TheKnotVenueScraper:
                     print(f"    ✅ Success! Page changed ('{original_venue_name[:25]}...' → '{new_venue_name[:25]}...')")
                     return True
                 else:
-                    print(f"    ⚠️  Content didn't change with {method_name}")
+                    print(f"    ⚠️  First venue unchanged with {method_name}: '{original_venue_name[:30]}...'")
                     return False
             except:
                 print(f"    ⚠️  Could not verify change with {method_name}")
