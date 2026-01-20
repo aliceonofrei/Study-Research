@@ -287,21 +287,42 @@ class TheKnotVenueScraper:
         venues = []
 
         try:
-            venue_elements = self.driver.find_elements(By.CSS_SELECTOR, "section[data-testid='vendor-card-base']")
+            # Wait a moment for page to fully render
+            time.sleep(1)
 
-            print(f"  Found {len(venue_elements)} venue cards on page")
+            # Get count of venue cards
+            venue_elements = self.driver.find_elements(By.CSS_SELECTOR, "section[data-testid='vendor-card-base']")
+            total_venues = len(venue_elements)
+
+            print(f"  Found {total_venues} venue cards on page")
             print(f"  Extracting venue data...", end='', flush=True)
 
-            for idx, venue_element in enumerate(venue_elements, 1):
+            # Extract data from each venue by re-querying each time
+            # This avoids stale element references
+            for idx in range(total_venues):
                 try:
-                    venue_data = self.extract_venue_data(venue_element)
-                    if venue_data:
-                        venues.append(venue_data)
+                    # Re-find all venue elements each iteration to avoid stale references
+                    current_venue_elements = self.driver.find_elements(By.CSS_SELECTOR, "section[data-testid='vendor-card-base']")
+
+                    if idx < len(current_venue_elements):
+                        venue_data = self.extract_venue_data(current_venue_elements[idx])
+                        if venue_data:
+                            venues.append(venue_data)
+
                     # Show progress every 10 venues
-                    if idx % 10 == 0 or idx == len(venue_elements):
-                        print(f"\r  Extracting venue data... {idx}/{len(venue_elements)}", end='', flush=True)
+                    if (idx + 1) % 10 == 0 or (idx + 1) == total_venues:
+                        print(f"\r  Extracting venue data... {idx + 1}/{total_venues}", end='', flush=True)
+
                 except StaleElementReferenceException:
-                    continue
+                    # Re-query and try again once
+                    try:
+                        current_venue_elements = self.driver.find_elements(By.CSS_SELECTOR, "section[data-testid='vendor-card-base']")
+                        if idx < len(current_venue_elements):
+                            venue_data = self.extract_venue_data(current_venue_elements[idx])
+                            if venue_data:
+                                venues.append(venue_data)
+                    except:
+                        continue
 
             print()  # New line after progress
 
