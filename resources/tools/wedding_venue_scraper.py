@@ -404,31 +404,13 @@ class TheKnotVenueScraper:
                 # Get venues from current page
                 venues = self.get_venues_on_page()
 
-                # Check for duplicate venues (indicates we're looping)
-                # Use name+location as unique identifier
-                new_venues_count = 0
+                # Add all venues without duplicate checking (user will handle in post-processing)
                 for venue in venues:
-                    venue_name = venue.get('name', '')
-                    venue_location = venue.get('location', '')
-                    venue_key = (venue_name, venue_location)
+                    venue['search_city'] = city
+                    venue['search_state'] = state
+                    city_venues.append(venue)
 
-                    if venue_key not in seen_venues:
-                        seen_venues.add(venue_key)
-                        venue['search_city'] = city
-                        venue['search_state'] = state
-                        city_venues.append(venue)
-                        new_venues_count += 1
-
-                if new_venues_count == 0 and len(venues) > 0:
-                    consecutive_duplicate_pages += 1
-                    print(f"  ⚠️  All {len(venues)} venues on this page are duplicates (duplicate page #{consecutive_duplicate_pages})")
-
-                    if consecutive_duplicate_pages >= 2:
-                        print(f"  ⚠️  Two consecutive pages of duplicates - reached end of results")
-                        break
-                else:
-                    consecutive_duplicate_pages = 0
-                    print(f"  ✅ Extracted {new_venues_count} new venues from page {page_num}")
+                print(f"  ✅ Extracted {len(venues)} venues from page {page_num}")
 
                 # Try to go to next page
                 if not self.click_next_page(page_num):
