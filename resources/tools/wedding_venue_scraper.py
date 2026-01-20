@@ -338,11 +338,11 @@ class TheKnotVenueScraper:
             self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
             time.sleep(2)
 
-            # Get the first venue name before clicking to verify page changes
+            # Get the first venue element (not just text) to wait for it to become stale
             try:
-                first_venue_before = self.driver.find_element(By.CSS_SELECTOR, "section[data-testid='vendor-card-base'] [class*='vendor-name']").text
+                first_venue_elem = self.driver.find_element(By.CSS_SELECTOR, "section[data-testid='vendor-card-base']")
             except:
-                first_venue_before = None
+                first_venue_elem = None
 
             # Check if "Go to next page" link exists
             try:
@@ -352,22 +352,20 @@ class TheKnotVenueScraper:
                 # Click using JavaScript
                 self.driver.execute_script("arguments[0].click();", next_link)
 
-                # Wait longer for page to load and content to refresh
-                time.sleep(5)
-
-                # Verify the page content actually changed by checking first venue
-                if first_venue_before:
+                # Wait for the old content to become stale (page to refresh)
+                if first_venue_elem:
                     try:
-                        first_venue_after = self.driver.find_element(By.CSS_SELECTOR, "section[data-testid='vendor-card-base'] [class*='vendor-name']").text
+                        # Wait up to 10 seconds for the element to become stale
+                        WebDriverWait(self.driver, 10).until(
+                            EC.staleness_of(first_venue_elem)
+                        )
+                        print(f"  ✅ Page content refreshed")
+                    except TimeoutException:
+                        print(f"  ⚠️  Page content didn't refresh - pagination may not be working")
+                        return False
 
-                        if first_venue_after == first_venue_before:
-                            print(f"  ⚠️  First venue didn't change (still '{first_venue_before[:30]}...') - reached last page")
-                            return False
-                        else:
-                            print(f"  ✅ Page content updated (first venue changed)")
-                    except:
-                        # If we can't find venues, page might not have loaded
-                        print(f"  ⚠️  Could not verify page change")
+                # Wait an additional moment for new content to fully load
+                time.sleep(2)
 
                 return True
 
