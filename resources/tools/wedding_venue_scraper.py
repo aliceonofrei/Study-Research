@@ -317,37 +317,50 @@ class TheKnotVenueScraper:
             self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
             time.sleep(2)
 
-            # The Knot uses: <a aria-label="Go to next page">
-            # Try multiple variations to be safe
-            selectors_to_try = [
-                "a[aria-label='Go to next page']",
-                "a[aria-label*='next page']",
-                "a[aria-label*='Next page']",
-            ]
+            # Get current page number before clicking
+            try:
+                current_page_text = self.driver.find_element(By.CSS_SELECTOR, "nav[aria-label] button[aria-current='page']").text
+                current_page = int(current_page_text)
+            except:
+                current_page = None
 
-            for selector in selectors_to_try:
-                try:
-                    next_button = self.driver.find_element(By.CSS_SELECTOR, selector)
+            # Check if "Go to next page" link exists and is enabled
+            try:
+                next_link = self.driver.find_element(By.CSS_SELECTOR, "a[aria-label='Go to next page']")
 
-                    print(f"  🔍 Found next button with selector: {selector}")
+                # Check if link is disabled/hidden
+                parent_classes = next_link.find_element(By.XPATH, "./..").get_attribute("class") or ""
+                if "disabled" in parent_classes.lower():
+                    print(f"  ℹ️  Next page button is disabled - reached last page")
+                    return False
 
-                    # Scroll to button and click
-                    self.driver.execute_script("arguments[0].scrollIntoView(true);", next_button)
-                    time.sleep(1)
+                print(f"  🔍 Found next button, clicking...")
 
-                    # Click using JavaScript to avoid any overlay issues
-                    self.driver.execute_script("arguments[0].click();", next_button)
+                # Click using JavaScript
+                self.driver.execute_script("arguments[0].click();", next_link)
 
-                    # Wait for new page to load
-                    time.sleep(3)
-                    return True
+                # Wait for page to load
+                time.sleep(4)
 
-                except NoSuchElementException:
-                    continue
+                # Verify we moved to a new page
+                if current_page:
+                    try:
+                        new_page_text = self.driver.find_element(By.CSS_SELECTOR, "nav[aria-label] button[aria-current='page']").text
+                        new_page = int(new_page_text)
 
-            # No next button found with any selector
-            print(f"  ℹ️  No next page button found - reached last page")
-            return False
+                        if new_page == current_page:
+                            print(f"  ⚠️  Page number didn't change (still on {current_page}) - reached last page")
+                            return False
+
+                        print(f"  ✅ Advanced from page {current_page} to page {new_page}")
+                    except:
+                        pass
+
+                return True
+
+            except NoSuchElementException:
+                print(f"  ℹ️  No next page button found - reached last page")
+                return False
 
         except Exception as e:
             print(f"  ⚠️  Error clicking next page: {e}")
