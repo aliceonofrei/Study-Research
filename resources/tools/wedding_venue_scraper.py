@@ -25,6 +25,7 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.action_chains import ActionChains
 from selenium.common.exceptions import (
     TimeoutException,
     NoSuchElementException,
@@ -331,6 +332,48 @@ class TheKnotVenueScraper:
 
         return venues
 
+    def try_click_button(self, button, method_name: str) -> bool:
+        """Try clicking a button using a specific method and verify the page changed"""
+        try:
+            # Get current first venue for comparison
+            try:
+                first_venue = self.driver.find_element(By.CSS_SELECTOR, "section[data-testid='vendor-card-base'] [class*='vendor-name']")
+                original_venue_name = first_venue.text.strip()
+            except:
+                original_venue_name = ""
+
+            if method_name == "javascript":
+                self.driver.execute_script("arguments[0].click();", button)
+            elif method_name == "action_chains":
+                actions = ActionChains(self.driver)
+                actions.move_to_element(button).click().perform()
+            elif method_name == "regular":
+                button.click()
+
+            print(f"    ⏳ Clicked with {method_name}, waiting for response...")
+
+            # Wait longer for JavaScript to update the page
+            time.sleep(5)
+
+            # Check if content changed
+            try:
+                new_first_venue = self.driver.find_element(By.CSS_SELECTOR, "section[data-testid='vendor-card-base'] [class*='vendor-name']")
+                new_venue_name = new_first_venue.text.strip()
+
+                if original_venue_name and new_venue_name and new_venue_name != original_venue_name:
+                    print(f"    ✅ Success! Page changed ('{original_venue_name[:25]}...' → '{new_venue_name[:25]}...')")
+                    return True
+                else:
+                    print(f"    ⚠️  Content didn't change with {method_name}")
+                    return False
+            except:
+                print(f"    ⚠️  Could not verify change with {method_name}")
+                return False
+
+        except Exception as e:
+            print(f"    ❌ Error with {method_name}: {e}")
+            return False
+
     def click_next_page(self, current_page: int) -> bool:
         """Navigate to the next page using multiple strategies"""
         try:
@@ -338,137 +381,124 @@ class TheKnotVenueScraper:
             self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
             time.sleep(2)
 
-            # Get the first venue element for verification
-            try:
-                first_venue_elem = self.driver.find_element(By.CSS_SELECTOR, "section[data-testid='vendor-card-base']")
-                first_venue_name_elem = first_venue_elem.find_element(By.CSS_SELECTOR, "[class*='vendor-name']")
-                first_venue_name = first_venue_name_elem.text.strip()
-            except:
-                first_venue_elem = None
-                first_venue_name = ""
-
             next_page_num = current_page + 1
 
             # Strategy 1: Try multiple button selector variations
             button_selectors = [
+                f"a[aria-label='Go to page {next_page_num}']",
                 f"button[aria-label='Go to page {next_page_num}']",
+                f"a[aria-label='Page {next_page_num}']",
                 f"button[aria-label='Page {next_page_num}']",
                 f"button[aria-label='page {next_page_num}']",
                 f"button[aria-label*='page {next_page_num}']",
-                f"a[aria-label='Go to page {next_page_num}']",
-                f"a[aria-label='Page {next_page_num}']",
             ]
 
-            button_found = False
+            page_button = None
             for selector in button_selectors:
                 try:
                     page_button = self.driver.find_element(By.CSS_SELECTOR, selector)
-                    print(f"  🔍 Found button with selector: {selector}")
-
-                    # Scroll button into view
-                    self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", page_button)
-                    time.sleep(1)
-
-                    # Click using JavaScript
-                    self.driver.execute_script("arguments[0].click();", page_button)
-                    print(f"  ⏳ Clicked page {next_page_num} button, waiting for page load...")
-
-                    button_found = True
+                    print(f"  🔍 Found button: {selector}")
                     break
                 except NoSuchElementException:
                     continue
 
-            if not button_found:
-                # Strategy 2: Try finding "Next" button
+            if page_button:
+                # Scroll button into view
+                self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", page_button)
+                time.sleep(1)
+
+                # Try different click methods until one works
+                click_methods = ["action_chains", "javascript", "regular"]
+                for method in click_methods:
+                    if self.try_click_button(page_button, method):
+                        # Wait for page to fully load
+                        time.sleep(2)
+                        WebDriverWait(self.driver, 10).until(
+                            EC.presence_of_element_located((By.CSS_SELECTOR, "section[data-testid='vendor-card-base']"))
+                        )
+                        return True
+
+                print(f"  ⚠️  All click methods failed - page didn't change")
+
+            # Strategy 2: Try "Next" button
+            if not page_button or True:  # Always try this as fallback
                 next_button_selectors = [
+                    "a[aria-label='Go to next page']",
                     "button[aria-label='Go to next page']",
                     "button[aria-label='Next page']",
                     "button[aria-label*='Next']",
-                    "a[aria-label='Go to next page']",
                     "a[aria-label*='Next']",
                 ]
 
+                next_button = None
                 for selector in next_button_selectors:
                     try:
                         next_button = self.driver.find_element(By.CSS_SELECTOR, selector)
-                        print(f"  🔍 Found 'Next' button with selector: {selector}")
-
-                        # Scroll into view and click
-                        self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", next_button)
-                        time.sleep(1)
-                        self.driver.execute_script("arguments[0].click();", next_button)
-                        print(f"  ⏳ Clicked 'Next' button, waiting for page load...")
-
-                        button_found = True
+                        print(f"  🔍 Found 'Next' button: {selector}")
                         break
                     except NoSuchElementException:
                         continue
 
-            if not button_found:
-                # Strategy 3: Try URL-based pagination
-                print(f"  🔍 No pagination button found, trying URL-based navigation...")
-                current_url = self.driver.current_url
+                if next_button:
+                    self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", next_button)
+                    time.sleep(1)
 
-                # Try different URL parameter approaches
-                url_params_to_try = [
-                    f"&page={next_page_num}",
-                    f"?page={next_page_num}",
-                    f"&p={next_page_num}",
-                    f"&offset={(next_page_num - 1) * 30}",
-                ]
+                    click_methods = ["action_chains", "javascript", "regular"]
+                    for method in click_methods:
+                        if self.try_click_button(next_button, method):
+                            time.sleep(2)
+                            WebDriverWait(self.driver, 10).until(
+                                EC.presence_of_element_located((By.CSS_SELECTOR, "section[data-testid='vendor-card-base']"))
+                            )
+                            return True
 
-                for param in url_params_to_try:
-                    try:
-                        # Check if URL already has query params
-                        if '?' in current_url:
-                            new_url = current_url.split('&page=')[0].split('&p=')[0].split('&offset=')[0] + param.replace('?', '&')
-                        else:
-                            new_url = current_url + param
+            # Strategy 3: Try URL-based pagination
+            print(f"  🔍 Trying URL-based navigation...")
+            current_url = self.driver.current_url
 
-                        print(f"  ⏳ Trying URL: {new_url[:100]}...")
-                        self.driver.get(new_url)
-                        button_found = True
-                        break
-                    except:
-                        continue
+            url_params_to_try = [
+                f"&page={next_page_num}",
+                f"&p={next_page_num}",
+                f"&offset={(next_page_num - 1) * 30}",
+            ]
 
-            if not button_found:
-                print(f"  ℹ️  No pagination method worked - assuming last page")
-                return False
+            for param in url_params_to_try:
+                # Check if URL already has query params
+                if '?' in current_url:
+                    base_url = current_url.split('&page=')[0].split('&p=')[0].split('&offset=')[0]
+                    new_url = base_url + param
+                else:
+                    new_url = current_url + param.replace('&', '?')
 
-            # Wait for page to load and verify content changed
-            time.sleep(3)
+                print(f"  ⏳ Trying: {new_url[:80]}...")
 
-            # Wait for venues to load
-            try:
-                WebDriverWait(self.driver, 10).until(
-                    EC.presence_of_element_located((By.CSS_SELECTOR, "section[data-testid='vendor-card-base']"))
-                )
-            except TimeoutException:
-                print(f"  ⚠️  Timeout waiting for venues after navigation")
-                return False
-
-            # Verify the page actually changed by checking first venue
-            if first_venue_name:
+                # Get first venue before navigation
                 try:
-                    time.sleep(2)  # Extra wait for content to stabilize
-                    new_first_venue_elem = self.driver.find_element(By.CSS_SELECTOR, "section[data-testid='vendor-card-base']")
-                    new_first_venue_name_elem = new_first_venue_elem.find_element(By.CSS_SELECTOR, "[class*='vendor-name']")
-                    new_first_venue_name = new_first_venue_name_elem.text.strip()
+                    original_venue = self.driver.find_element(By.CSS_SELECTOR, "section[data-testid='vendor-card-base'] [class*='vendor-name']")
+                    original_name = original_venue.text.strip()
+                except:
+                    original_name = ""
 
-                    if new_first_venue_name and new_first_venue_name != first_venue_name:
-                        print(f"  ✅ Page changed! ('{first_venue_name[:30]}...' → '{new_first_venue_name[:30]}...')")
+                self.driver.get(new_url)
+                time.sleep(4)
+
+                # Check if it worked
+                try:
+                    WebDriverWait(self.driver, 10).until(
+                        EC.presence_of_element_located((By.CSS_SELECTOR, "section[data-testid='vendor-card-base']"))
+                    )
+
+                    new_venue = self.driver.find_element(By.CSS_SELECTOR, "section[data-testid='vendor-card-base'] [class*='vendor-name']")
+                    new_name = new_venue.text.strip()
+
+                    if original_name and new_name and new_name != original_name:
+                        print(f"  ✅ URL navigation worked! ('{original_name[:25]}...' → '{new_name[:25]}...')")
                         return True
-                    else:
-                        print(f"  ⚠️  First venue unchanged ('{first_venue_name[:30]}...') - may be last page")
-                        return False
-                except Exception as e:
-                    print(f"  ⚠️  Could not verify page change: {e}")
-                    # If we can't verify but found venues, assume success
-                    return True
+                except:
+                    continue
 
-            # If no first venue to compare, assume success if venues are present
-            return True
+            print(f"  ℹ️  All pagination methods failed - assuming last page")
+            return False
 
         except Exception as e:
             print(f"  ⚠️  Error navigating to next page: {e}")
