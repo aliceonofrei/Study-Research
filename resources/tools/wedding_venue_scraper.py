@@ -338,16 +338,11 @@ class TheKnotVenueScraper:
             self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
             time.sleep(2)
 
-            # Get current page number and URL before clicking
-            current_url = self.driver.current_url
+            # Get the first venue name before clicking to verify page changes
             try:
-                current_page_elem = self.driver.find_element(By.CSS_SELECTOR, "button[aria-current='page']")
-                current_page_text = current_page_elem.text
-                current_page = int(current_page_text)
-                print(f"  📍 Currently on page {current_page}")
-            except Exception as e:
-                print(f"  ⚠️  Could not detect current page number: {e}")
-                current_page = None
+                first_venue_before = self.driver.find_element(By.CSS_SELECTOR, "section[data-testid='vendor-card-base'] [class*='vendor-name']").text
+            except:
+                first_venue_before = None
 
             # Check if "Go to next page" link exists
             try:
@@ -357,28 +352,22 @@ class TheKnotVenueScraper:
                 # Click using JavaScript
                 self.driver.execute_script("arguments[0].click();", next_link)
 
-                # Wait for page to load
-                time.sleep(4)
+                # Wait longer for page to load and content to refresh
+                time.sleep(5)
 
-                # Verify page actually changed
-                new_url = self.driver.current_url
-                if current_url == new_url:
-                    print(f"  ⚠️  URL didn't change - pagination may not be working")
-
-                # Check new page number
-                if current_page:
+                # Verify the page content actually changed by checking first venue
+                if first_venue_before:
                     try:
-                        new_page_elem = self.driver.find_element(By.CSS_SELECTOR, "button[aria-current='page']")
-                        new_page_text = new_page_elem.text
-                        new_page = int(new_page_text)
+                        first_venue_after = self.driver.find_element(By.CSS_SELECTOR, "section[data-testid='vendor-card-base'] [class*='vendor-name']").text
 
-                        if new_page == current_page:
-                            print(f"  ⚠️  Page number didn't change (still on {current_page}) - reached last page")
+                        if first_venue_after == first_venue_before:
+                            print(f"  ⚠️  First venue didn't change (still '{first_venue_before[:30]}...') - reached last page")
                             return False
-
-                        print(f"  ✅ Advanced from page {current_page} to page {new_page}")
-                    except Exception as e:
-                        print(f"  ⚠️  Could not verify new page number: {e}")
+                        else:
+                            print(f"  ✅ Page content updated (first venue changed)")
+                    except:
+                        # If we can't find venues, page might not have loaded
+                        print(f"  ⚠️  Could not verify page change")
 
                 return True
 
