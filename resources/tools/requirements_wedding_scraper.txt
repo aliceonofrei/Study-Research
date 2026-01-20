@@ -1,0 +1,4 @@
+# Requirements for Wedding Venue Scraper
+# Install with: pip install -r requirements_wedding_scraper.txt
+
+selenium>=4.15.0
