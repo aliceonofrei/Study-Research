@@ -203,7 +203,7 @@ class TheKnotVenueScraper:
         """Wait for venue cards to load on the page"""
         try:
             WebDriverWait(self.driver, timeout).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, "[data-testid='vendor-card']"))
+                EC.presence_of_element_located((By.CSS_SELECTOR, "section[data-testid='vendor-card-base']"))
             )
             time.sleep(2)  # Additional wait for dynamic content
             return True
@@ -224,23 +224,29 @@ class TheKnotVenueScraper:
 
             # Extract venue name
             try:
-                name_element = venue_element.find_element(By.CSS_SELECTOR, "[data-testid='vendor-name']")
+                name_element = venue_element.find_element(By.CSS_SELECTOR, "[class*='vendor-name']")
                 venue_data['name'] = name_element.text.strip()
             except NoSuchElementException:
                 pass
 
-            # Extract location
+            # Extract location (prefer sr-only for full text, fallback to visible text)
             try:
-                location_element = venue_element.find_element(By.CSS_SELECTOR, "[data-testid='vendor-location']")
+                # Try to get full location from sr-only span first
+                location_element = venue_element.find_element(By.CSS_SELECTOR, "[class*='location-text'] .sr-only")
                 venue_data['location'] = location_element.text.strip()
             except NoSuchElementException:
-                pass
+                try:
+                    # Fallback to visible location text
+                    location_element = venue_element.find_element(By.CSS_SELECTOR, "[class*='location-text']")
+                    venue_data['location'] = location_element.text.strip()
+                except NoSuchElementException:
+                    pass
 
             # Extract rating
             try:
-                rating_element = venue_element.find_element(By.CSS_SELECTOR, "[data-testid='vendor-rating']")
+                rating_element = venue_element.find_element(By.CSS_SELECTOR, "[class*='star-count']")
                 rating_text = rating_element.text.strip()
-                # Extract numeric rating (e.g., "4.9" from "4.9 (123)")
+                # Extract numeric rating (e.g., "4.9" from "4.9Stars")
                 rating_match = re.search(r'(\d+\.?\d*)', rating_text)
                 if rating_match:
                     venue_data['rating'] = rating_match.group(1)
@@ -249,10 +255,10 @@ class TheKnotVenueScraper:
 
             # Extract number of reviews
             try:
-                reviews_element = venue_element.find_element(By.CSS_SELECTOR, "[data-testid='vendor-reviews']")
+                reviews_element = venue_element.find_element(By.CSS_SELECTOR, "[class*='review-count']")
                 reviews_text = reviews_element.text.strip()
-                # Extract number (e.g., "123" from "123 reviews")
-                reviews_match = re.search(r'(\d+)', reviews_text)
+                # Extract number (e.g., "74" from "(74)")
+                reviews_match = re.search(r'\(?\s*(\d+)\s*\)?', reviews_text)
                 if reviews_match:
                     venue_data['num_reviews'] = reviews_match.group(1)
             except NoSuchElementException:
@@ -276,7 +282,7 @@ class TheKnotVenueScraper:
         venues = []
 
         try:
-            venue_elements = self.driver.find_elements(By.CSS_SELECTOR, "[data-testid='vendor-card']")
+            venue_elements = self.driver.find_elements(By.CSS_SELECTOR, "section[data-testid='vendor-card-base']")
 
             print(f"  Found {len(venue_elements)} venue cards on page")
 
