@@ -331,8 +331,8 @@ class TheKnotVenueScraper:
 
         return venues
 
-    def click_next_page(self) -> bool:
-        """Click the next page button if available"""
+    def click_next_page(self, current_page: int) -> bool:
+        """Click to go to the next page"""
         try:
             # Scroll to bottom first to ensure pagination is visible
             self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
@@ -344,13 +344,17 @@ class TheKnotVenueScraper:
             except:
                 first_venue_elem = None
 
-            # Check if "Go to next page" link exists
+            # Try to find and click the next page number button
+            next_page_num = current_page + 1
+
+            # Look for button with the next page number
             try:
-                next_link = self.driver.find_element(By.CSS_SELECTOR, "a[aria-label='Go to next page']")
-                print(f"  🔍 Found next button, clicking...")
+                # Try to find button with aria-label like "Go to page 2"
+                page_button = self.driver.find_element(By.CSS_SELECTOR, f"button[aria-label='Go to page {next_page_num}']")
+                print(f"  🔍 Found page {next_page_num} button, clicking...")
 
                 # Click using JavaScript
-                self.driver.execute_script("arguments[0].click();", next_link)
+                self.driver.execute_script("arguments[0].click();", page_button)
 
                 # Wait for the old content to become stale (page to refresh)
                 if first_venue_elem:
@@ -361,7 +365,7 @@ class TheKnotVenueScraper:
                         )
                         print(f"  ✅ Page content refreshed")
                     except TimeoutException:
-                        print(f"  ⚠️  Page content didn't refresh - pagination may not be working")
+                        print(f"  ⚠️  Page content didn't refresh - trying URL navigation")
                         return False
 
                 # Wait an additional moment for new content to fully load
@@ -370,7 +374,7 @@ class TheKnotVenueScraper:
                 return True
 
             except NoSuchElementException:
-                print(f"  ℹ️  No next page button found - reached last page")
+                print(f"  ℹ️  No page {next_page_num} button found - reached last page")
                 return False
 
         except Exception as e:
@@ -427,7 +431,7 @@ class TheKnotVenueScraper:
                     print(f"  ✅ Extracted {new_venues_count} new venues from page {page_num}")
 
                 # Try to go to next page
-                if not self.click_next_page():
+                if not self.click_next_page(page_num):
                     print(f"  ✅ Reached last page")
                     break
 
