@@ -332,53 +332,146 @@ class TheKnotVenueScraper:
         return venues
 
     def click_next_page(self, current_page: int) -> bool:
-        """Click to go to the next page"""
+        """Navigate to the next page using multiple strategies"""
         try:
             # Scroll to bottom first to ensure pagination is visible
             self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
             time.sleep(2)
 
-            # Get the first venue element (not just text) to wait for it to become stale
+            # Get the first venue element for verification
             try:
                 first_venue_elem = self.driver.find_element(By.CSS_SELECTOR, "section[data-testid='vendor-card-base']")
+                first_venue_name_elem = first_venue_elem.find_element(By.CSS_SELECTOR, "[class*='vendor-name']")
+                first_venue_name = first_venue_name_elem.text.strip()
             except:
                 first_venue_elem = None
+                first_venue_name = ""
 
-            # Try to find and click the next page number button
             next_page_num = current_page + 1
 
-            # Look for button with the next page number
-            try:
-                # Try to find button with aria-label like "Go to page 2"
-                page_button = self.driver.find_element(By.CSS_SELECTOR, f"button[aria-label='Go to page {next_page_num}']")
-                print(f"  🔍 Found page {next_page_num} button, clicking...")
+            # Strategy 1: Try multiple button selector variations
+            button_selectors = [
+                f"button[aria-label='Go to page {next_page_num}']",
+                f"button[aria-label='Page {next_page_num}']",
+                f"button[aria-label='page {next_page_num}']",
+                f"button[aria-label*='page {next_page_num}']",
+                f"a[aria-label='Go to page {next_page_num}']",
+                f"a[aria-label='Page {next_page_num}']",
+            ]
 
-                # Click using JavaScript
-                self.driver.execute_script("arguments[0].click();", page_button)
+            button_found = False
+            for selector in button_selectors:
+                try:
+                    page_button = self.driver.find_element(By.CSS_SELECTOR, selector)
+                    print(f"  🔍 Found button with selector: {selector}")
 
-                # Wait for the old content to become stale (page to refresh)
-                if first_venue_elem:
+                    # Scroll button into view
+                    self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", page_button)
+                    time.sleep(1)
+
+                    # Click using JavaScript
+                    self.driver.execute_script("arguments[0].click();", page_button)
+                    print(f"  ⏳ Clicked page {next_page_num} button, waiting for page load...")
+
+                    button_found = True
+                    break
+                except NoSuchElementException:
+                    continue
+
+            if not button_found:
+                # Strategy 2: Try finding "Next" button
+                next_button_selectors = [
+                    "button[aria-label='Go to next page']",
+                    "button[aria-label='Next page']",
+                    "button[aria-label*='Next']",
+                    "a[aria-label='Go to next page']",
+                    "a[aria-label*='Next']",
+                ]
+
+                for selector in next_button_selectors:
                     try:
-                        # Wait up to 10 seconds for the element to become stale
-                        WebDriverWait(self.driver, 10).until(
-                            EC.staleness_of(first_venue_elem)
-                        )
-                        print(f"  ✅ Page content refreshed")
-                    except TimeoutException:
-                        print(f"  ⚠️  Page content didn't refresh - trying URL navigation")
-                        return False
+                        next_button = self.driver.find_element(By.CSS_SELECTOR, selector)
+                        print(f"  🔍 Found 'Next' button with selector: {selector}")
 
-                # Wait an additional moment for new content to fully load
-                time.sleep(2)
+                        # Scroll into view and click
+                        self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", next_button)
+                        time.sleep(1)
+                        self.driver.execute_script("arguments[0].click();", next_button)
+                        print(f"  ⏳ Clicked 'Next' button, waiting for page load...")
 
-                return True
+                        button_found = True
+                        break
+                    except NoSuchElementException:
+                        continue
 
-            except NoSuchElementException:
-                print(f"  ℹ️  No page {next_page_num} button found - reached last page")
+            if not button_found:
+                # Strategy 3: Try URL-based pagination
+                print(f"  🔍 No pagination button found, trying URL-based navigation...")
+                current_url = self.driver.current_url
+
+                # Try different URL parameter approaches
+                url_params_to_try = [
+                    f"&page={next_page_num}",
+                    f"?page={next_page_num}",
+                    f"&p={next_page_num}",
+                    f"&offset={(next_page_num - 1) * 30}",
+                ]
+
+                for param in url_params_to_try:
+                    try:
+                        # Check if URL already has query params
+                        if '?' in current_url:
+                            new_url = current_url.split('&page=')[0].split('&p=')[0].split('&offset=')[0] + param.replace('?', '&')
+                        else:
+                            new_url = current_url + param
+
+                        print(f"  ⏳ Trying URL: {new_url[:100]}...")
+                        self.driver.get(new_url)
+                        button_found = True
+                        break
+                    except:
+                        continue
+
+            if not button_found:
+                print(f"  ℹ️  No pagination method worked - assuming last page")
                 return False
 
+            # Wait for page to load and verify content changed
+            time.sleep(3)
+
+            # Wait for venues to load
+            try:
+                WebDriverWait(self.driver, 10).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, "section[data-testid='vendor-card-base']"))
+                )
+            except TimeoutException:
+                print(f"  ⚠️  Timeout waiting for venues after navigation")
+                return False
+
+            # Verify the page actually changed by checking first venue
+            if first_venue_name:
+                try:
+                    time.sleep(2)  # Extra wait for content to stabilize
+                    new_first_venue_elem = self.driver.find_element(By.CSS_SELECTOR, "section[data-testid='vendor-card-base']")
+                    new_first_venue_name_elem = new_first_venue_elem.find_element(By.CSS_SELECTOR, "[class*='vendor-name']")
+                    new_first_venue_name = new_first_venue_name_elem.text.strip()
+
+                    if new_first_venue_name and new_first_venue_name != first_venue_name:
+                        print(f"  ✅ Page changed! ('{first_venue_name[:30]}...' → '{new_first_venue_name[:30]}...')")
+                        return True
+                    else:
+                        print(f"  ⚠️  First venue unchanged ('{first_venue_name[:30]}...') - may be last page")
+                        return False
+                except Exception as e:
+                    print(f"  ⚠️  Could not verify page change: {e}")
+                    # If we can't verify but found venues, assume success
+                    return True
+
+            # If no first venue to compare, assume success if venues are present
+            return True
+
         except Exception as e:
-            print(f"  ⚠️  Error clicking next page: {e}")
+            print(f"  ⚠️  Error navigating to next page: {e}")
             return False
 
     def scrape_city(self, city: str, state: str) -> List[Dict]:
