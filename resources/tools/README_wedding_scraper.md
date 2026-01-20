@@ -6,7 +6,7 @@
 
 ## Overview
 
-This Python script scrapes wedding venue data from TheKnot.com, specifically targeting outdoor wedding venues (both covered and uncovered) across 489 US cities. The script automatically handles pagination and exports data to CSV format.
+This Python script scrapes wedding venue data from TheKnot.com, specifically targeting outdoor wedding venues (both covered and uncovered) across 500 US cities. The script automatically handles pagination and exports data to CSV format.
 
 ## Features
 
@@ -82,7 +82,7 @@ python -c "import selenium; print(selenium.__version__)"
 
 ### Basic Usage (All Cities)
 
-To scrape all 489 cities:
+To scrape all 500 cities:
 
 ```bash
 python wedding_venue_scraper.py
@@ -133,11 +133,11 @@ The script provides detailed progress information:
 ============================================================
 The Knot Wedding Venue Scraper
 ============================================================
-🚀 Starting scrape for 489 cities...
+🚀 Starting scrape for 500 cities...
 ⏰ This may take several hours to complete
 
 ============================================================
-Progress: 1/489 cities
+Progress: 1/500 cities
 ============================================================
 
 🔍 Scraping New York, NY...
@@ -166,7 +166,7 @@ If you interrupt the script (Ctrl+C), it automatically saves partial data to:
 
 ## Cities Included
 
-The script scrapes **489 US cities**, including:
+The script scrapes **500 US cities**, including:
 
 - All top 50 US cities by population
 - Major metropolitan areas
@@ -359,7 +359,7 @@ For issues or improvements:
 ## Version History
 
 - **v1.0** (2026-01-20): Initial release
-  - Support for 489 US cities
+  - Support for 500 US cities
   - Automatic pagination
   - CSV export
   - Error handling and recovery

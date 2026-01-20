@@ -3,7 +3,7 @@
 Test Script for Wedding Venue Scraper
 
 This script tests the scraper with a single city to verify it's working correctly
-before running the full scrape of all 489 cities.
+before running the full scrape of all 500 cities.
 
 Author: AI-Assisted
 Date: 2026-01-20
