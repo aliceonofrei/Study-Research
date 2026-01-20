@@ -510,9 +510,9 @@ class TheKnotVenueScraper:
 
         url = self.format_city_url(city, state)
         city_venues = []
-        seen_venues = set()  # Track name+location to detect duplicates
+        seen_venue_keys = set()  # Track (name, location) tuples to detect duplicates/loops
         page_num = 1
-        consecutive_duplicate_pages = 0  # Count pages with all duplicates
+        max_duplicate_pages = 2  # Stop if we see 2 consecutive pages with all duplicates
 
         try:
             self.driver.get(url)
@@ -521,19 +521,43 @@ class TheKnotVenueScraper:
                 print(f"  ⚠️  No venues found for {city}, {state}")
                 return city_venues
 
+            consecutive_duplicate_pages = 0
+
             while True:
                 print(f"  📄 Processing page {page_num}...")
 
                 # Get venues from current page
                 venues = self.get_venues_on_page()
 
-                # Add all venues without duplicate checking (user will handle in post-processing)
+                # Track how many new venues we found on this page
+                new_venues_count = 0
+
+                # Add venues, but track duplicates to detect loops
                 for venue in venues:
+                    venue_key = (venue.get('name', ''), venue.get('location', ''))
+
+                    # Always add the venue (user will handle deduplication)
                     venue['search_city'] = city
                     venue['search_state'] = state
                     city_venues.append(venue)
 
-                print(f"  ✅ Extracted {len(venues)} venues from page {page_num}")
+                    # But track if it's new for loop detection
+                    if venue_key not in seen_venue_keys:
+                        new_venues_count += 1
+                        seen_venue_keys.add(venue_key)
+
+                print(f"  ✅ Extracted {len(venues)} venues from page {page_num} ({new_venues_count} new, {len(venues) - new_venues_count} duplicates)")
+
+                # If we got mostly duplicates, we might be in a loop
+                if len(venues) > 0 and new_venues_count == 0:
+                    consecutive_duplicate_pages += 1
+                    print(f"  ⚠️  All venues were duplicates (loop detection: {consecutive_duplicate_pages}/{max_duplicate_pages})")
+
+                    if consecutive_duplicate_pages >= max_duplicate_pages:
+                        print(f"  ⚠️  Detected pagination loop - stopping")
+                        break
+                else:
+                    consecutive_duplicate_pages = 0
 
                 # Try to go to next page
                 if not self.click_next_page(page_num):
@@ -548,6 +572,7 @@ class TheKnotVenueScraper:
                     break
 
             print(f"✅ Total venues found for {city}, {state}: {len(city_venues)}")
+            print(f"   Unique venues: {len(seen_venue_keys)}")
 
         except Exception as e:
             print(f"❌ Error scraping {city}, {state}: {e}")
