@@ -338,23 +338,20 @@ class TheKnotVenueScraper:
             self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
             time.sleep(2)
 
-            # Get current page number before clicking
+            # Get current page number and URL before clicking
+            current_url = self.driver.current_url
             try:
-                current_page_text = self.driver.find_element(By.CSS_SELECTOR, "nav[aria-label] button[aria-current='page']").text
+                current_page_elem = self.driver.find_element(By.CSS_SELECTOR, "button[aria-current='page']")
+                current_page_text = current_page_elem.text
                 current_page = int(current_page_text)
-            except:
+                print(f"  📍 Currently on page {current_page}")
+            except Exception as e:
+                print(f"  ⚠️  Could not detect current page number: {e}")
                 current_page = None
 
-            # Check if "Go to next page" link exists and is enabled
+            # Check if "Go to next page" link exists
             try:
                 next_link = self.driver.find_element(By.CSS_SELECTOR, "a[aria-label='Go to next page']")
-
-                # Check if link is disabled/hidden
-                parent_classes = next_link.find_element(By.XPATH, "./..").get_attribute("class") or ""
-                if "disabled" in parent_classes.lower():
-                    print(f"  ℹ️  Next page button is disabled - reached last page")
-                    return False
-
                 print(f"  🔍 Found next button, clicking...")
 
                 # Click using JavaScript
@@ -363,10 +360,16 @@ class TheKnotVenueScraper:
                 # Wait for page to load
                 time.sleep(4)
 
-                # Verify we moved to a new page
+                # Verify page actually changed
+                new_url = self.driver.current_url
+                if current_url == new_url:
+                    print(f"  ⚠️  URL didn't change - pagination may not be working")
+
+                # Check new page number
                 if current_page:
                     try:
-                        new_page_text = self.driver.find_element(By.CSS_SELECTOR, "nav[aria-label] button[aria-current='page']").text
+                        new_page_elem = self.driver.find_element(By.CSS_SELECTOR, "button[aria-current='page']")
+                        new_page_text = new_page_elem.text
                         new_page = int(new_page_text)
 
                         if new_page == current_page:
@@ -374,8 +377,8 @@ class TheKnotVenueScraper:
                             return False
 
                         print(f"  ✅ Advanced from page {current_page} to page {new_page}")
-                    except:
-                        pass
+                    except Exception as e:
+                        print(f"  ⚠️  Could not verify new page number: {e}")
 
                 return True
 
