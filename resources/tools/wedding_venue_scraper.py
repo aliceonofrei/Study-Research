@@ -232,13 +232,18 @@ class TheKnotVenueScraper:
             # Extract location (prefer sr-only for full text, fallback to visible text)
             try:
                 # Try to get full location from sr-only span first
-                location_element = venue_element.find_element(By.CSS_SELECTOR, "[class*='location-text'] .sr-only")
+                location_element = venue_element.find_element(By.CSS_SELECTOR, "[class*='location-text'] [class*='sr-only']")
                 venue_data['location'] = location_element.text.strip()
             except NoSuchElementException:
                 try:
-                    # Fallback to visible location text
-                    location_element = venue_element.find_element(By.CSS_SELECTOR, "[class*='location-text']")
-                    venue_data['location'] = location_element.text.strip()
+                    # Fallback: get visible location text but remove sr-only content
+                    location_container = venue_element.find_element(By.CSS_SELECTOR, "[class*='location-text']")
+                    # Get all text, but filter out aria-hidden elements
+                    try:
+                        visible_text = location_container.find_element(By.CSS_SELECTOR, "[aria-hidden='true']")
+                        venue_data['location'] = visible_text.text.strip()
+                    except NoSuchElementException:
+                        venue_data['location'] = location_container.text.strip()
                 except NoSuchElementException:
                     pass
 
@@ -312,17 +317,22 @@ class TheKnotVenueScraper:
             next_button_selectors = [
                 "button[aria-label='Next page']",
                 "a[aria-label='Next page']",
-                "button:contains('Next')",
+                "button[aria-label*='Next']",
                 "[data-testid='pagination-next']",
-                ".pagination .next:not(.disabled)",
+                "button[class*='next-button']",
+                "a[class*='next']",
             ]
 
             for selector in next_button_selectors:
                 try:
                     next_button = self.driver.find_element(By.CSS_SELECTOR, selector)
 
-                    # Check if button is disabled
-                    if next_button.get_attribute("disabled") or "disabled" in next_button.get_attribute("class"):
+                    # Check if button is disabled or hidden
+                    if next_button.get_attribute("disabled"):
+                        return False
+
+                    button_class = next_button.get_attribute("class") or ""
+                    if "disabled" in button_class.lower():
                         return False
 
                     # Scroll to button and click
@@ -334,7 +344,7 @@ class TheKnotVenueScraper:
                     time.sleep(3)
                     return True
 
-                except NoSuchElementException:
+                except (NoSuchElementException, Exception) as e:
                     continue
 
             return False
