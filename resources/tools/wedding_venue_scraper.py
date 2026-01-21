@@ -215,34 +215,42 @@ class TheKnotVenueScraper:
     def trigger_lazy_loading(self):
         """Scroll through page to trigger lazy loading of all venue content"""
         try:
+            print(f"  ⏳ Pre-scrolling to trigger lazy loading...", end='', flush=True)
+
             # Get all venue cards
             venue_elements = self.driver.find_elements(By.CSS_SELECTOR, "section[data-testid='vendor-card-base']")
 
             if not venue_elements:
+                print(f" no venues found")
                 return
 
             # Scroll through venues in batches to trigger lazy loading
             # Don't need to scroll every single one, just enough to trigger all loading
             batch_size = 10
+            batches_scrolled = 0
             for i in range(0, len(venue_elements), batch_size):
                 try:
                     # Re-query to avoid stale references
                     current_venues = self.driver.find_elements(By.CSS_SELECTOR, "section[data-testid='vendor-card-base']")
                     if i < len(current_venues):
                         self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", current_venues[i])
-                        time.sleep(0.2)  # Brief pause for loading
+                        time.sleep(0.5)  # Wait longer for loading
+                        batches_scrolled += 1
                 except:
                     continue
 
             # Scroll to bottom to ensure everything loaded
             self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            time.sleep(1)
+            time.sleep(1.5)
 
             # Scroll back to top
             self.driver.execute_script("window.scrollTo(0, 0);")
-            time.sleep(0.5)
+            time.sleep(1)
+
+            print(f" done ({batches_scrolled} batches)")
 
         except Exception as e:
+            print(f" failed: {e}")
             # If this fails, it's not critical - individual venue scrolling will handle it
             pass
 
@@ -347,7 +355,7 @@ class TheKnotVenueScraper:
 
                         # CRITICAL: Scroll venue into view to trigger lazy loading
                         self.driver.execute_script("arguments[0].scrollIntoView({block: 'center', behavior: 'smooth'});", venue_elem)
-                        time.sleep(0.3)  # Brief wait for content to load
+                        time.sleep(0.5)  # Brief wait for content to load
 
                         venue_data = self.extract_venue_data(venue_elem)
                         if venue_data:
