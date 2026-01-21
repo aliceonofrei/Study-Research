@@ -632,6 +632,9 @@ class TheKnotVenueScraper:
                 else:
                     consecutive_duplicate_pages = 0
 
+                # Wait for page to settle after all the scrolling during extraction
+                time.sleep(2)
+
                 # Try to go to next page
                 if not self.click_next_page(page_num, seen_venue_keys):
                     print(f"  ✅ Reached last page")
