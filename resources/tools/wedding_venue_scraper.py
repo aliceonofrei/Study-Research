@@ -585,9 +585,9 @@ class TheKnotVenueScraper:
             print(f"  ⚠️  Error navigating to next page: {e}")
             return False
 
-    def scrape_city(self, city: str, state: str) -> List[Dict]:
-        """Scrape all venues for a given city"""
-        print(f"\n🔍 Scraping {city}, {state}...")
+    def scrape_city(self, city: str, state: str, retry_count: int = 0, max_retries: int = 3) -> List[Dict]:
+        """Scrape all venues for a given city with retry logic"""
+        print(f"\n🔍 Scraping {city}, {state}..." + (f" (retry {retry_count}/{max_retries})" if retry_count > 0 else ""))
 
         url = self.format_city_url(city, state)
         city_venues = []
@@ -658,8 +658,45 @@ class TheKnotVenueScraper:
             print(f"✅ Total venues found for {city}, {state}: {len(city_venues)}")
             print(f"   Unique venues: {len(seen_venue_keys)}")
 
+        except TimeoutException as e:
+            print(f"⏱️  Timeout error for {city}, {state}: {e}")
+
+            # Retry if we haven't exceeded max retries
+            if retry_count < max_retries:
+                wait_time = 5 * (retry_count + 1)  # Exponential backoff: 5s, 10s, 15s
+                print(f"  ⏳ Waiting {wait_time} seconds before retry...")
+                time.sleep(wait_time)
+
+                # Restart browser to clear any hanging state
+                try:
+                    print(f"  🔄 Restarting browser...")
+                    self.close()
+                    self.setup_driver()
+                    return self.scrape_city(city, state, retry_count + 1, max_retries)
+                except Exception as restart_error:
+                    print(f"  ❌ Failed to restart browser: {restart_error}")
+                    return city_venues
+            else:
+                print(f"  ❌ Max retries exceeded for {city}, {state}")
+                return city_venues
+
         except Exception as e:
             print(f"❌ Error scraping {city}, {state}: {e}")
+
+            # For other errors, also try to recover by restarting browser
+            if retry_count < max_retries and "timeout" in str(e).lower():
+                wait_time = 5 * (retry_count + 1)
+                print(f"  ⏳ Waiting {wait_time} seconds before retry...")
+                time.sleep(wait_time)
+
+                try:
+                    print(f"  🔄 Restarting browser...")
+                    self.close()
+                    self.setup_driver()
+                    return self.scrape_city(city, state, retry_count + 1, max_retries)
+                except Exception as restart_error:
+                    print(f"  ❌ Failed to restart browser: {restart_error}")
+                    return city_venues
 
         return city_venues
 
@@ -678,11 +715,8 @@ class TheKnotVenueScraper:
             city_venues = self.scrape_city(city, state)
             self.all_venues.extend(city_venues)
 
-            # Rate limiting: wait between cities
-            if idx < len(self.CITIES):
-                wait_time = 3
-                print(f"⏳ Waiting {wait_time} seconds before next city...")
-                time.sleep(wait_time)
+            # Show cumulative progress
+            print(f"📈 Total venues collected so far: {len(self.all_venues)}")
 
         print(f"\n🎉 Scraping complete! Total venues collected: {len(self.all_venues)}")
 
