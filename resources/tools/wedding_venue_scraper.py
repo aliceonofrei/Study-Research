@@ -212,6 +212,40 @@ class TheKnotVenueScraper:
             print(f"  ⚠️  Timeout waiting for venues to load")
             return False
 
+    def trigger_lazy_loading(self):
+        """Scroll through page to trigger lazy loading of all venue content"""
+        try:
+            # Get all venue cards
+            venue_elements = self.driver.find_elements(By.CSS_SELECTOR, "section[data-testid='vendor-card-base']")
+
+            if not venue_elements:
+                return
+
+            # Scroll through venues in batches to trigger lazy loading
+            # Don't need to scroll every single one, just enough to trigger all loading
+            batch_size = 10
+            for i in range(0, len(venue_elements), batch_size):
+                try:
+                    # Re-query to avoid stale references
+                    current_venues = self.driver.find_elements(By.CSS_SELECTOR, "section[data-testid='vendor-card-base']")
+                    if i < len(current_venues):
+                        self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", current_venues[i])
+                        time.sleep(0.2)  # Brief pause for loading
+                except:
+                    continue
+
+            # Scroll to bottom to ensure everything loaded
+            self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            time.sleep(1)
+
+            # Scroll back to top
+            self.driver.execute_script("window.scrollTo(0, 0);")
+            time.sleep(0.5)
+
+        except Exception as e:
+            # If this fails, it's not critical - individual venue scrolling will handle it
+            pass
+
     def extract_venue_data(self, venue_element) -> Optional[Dict]:
         """Extract data from a single venue card"""
         try:
@@ -290,6 +324,9 @@ class TheKnotVenueScraper:
         try:
             # Wait a moment for page to fully render
             time.sleep(1)
+
+            # Trigger lazy loading by scrolling through page
+            self.trigger_lazy_loading()
 
             # Get count of venue cards
             venue_elements = self.driver.find_elements(By.CSS_SELECTOR, "section[data-testid='vendor-card-base']")
