@@ -753,8 +753,17 @@ class TheKnotVenueScraper:
         except Exception as e:
             print(f"❌ Error scraping {city}, {state}: {e}")
 
-            # For other errors, also try to recover by restarting browser
-            if retry_count < max_retries and "timeout" in str(e).lower():
+            # For other errors, try to recover by restarting browser
+            # Handle: timeouts, crashes, and connection errors
+            error_str = str(e).lower()
+            should_retry = (
+                "timeout" in error_str or
+                "timed out" in error_str or
+                "crash" in error_str or
+                "connection" in error_str
+            )
+
+            if retry_count < max_retries and should_retry:
                 wait_time = 5 * (retry_count + 1)
                 print(f"  ⏳ Waiting {wait_time} seconds before retry...")
                 time.sleep(wait_time)
@@ -829,8 +838,8 @@ def main():
         # For testing, you can limit the number of cities:
         # scraper.scrape_all_cities(start_index=0, limit=3)
 
-        # Resume from Overland Park, KS (index 128 = 129th city) - with retry logic
-        scraper.scrape_all_cities(start_index=128)
+        # Resume from Ontario, CA (index 145 = 146th city) - with crash handling
+        scraper.scrape_all_cities(start_index=145)
 
         # Export results
         scraper.export_to_csv("wedding_venues_outdoor_data.csv")
