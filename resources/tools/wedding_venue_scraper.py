@@ -325,8 +325,8 @@ class TheKnotVenueScraper:
             print(f"  ❌ Error extracting venue data: {e}")
             return None
 
-    def get_venues_on_page(self) -> List[Dict]:
-        """Extract all venues from the current page"""
+    def get_venues_on_page(self, retry_count: int = 0, max_retries: int = 2) -> List[Dict]:
+        """Extract all venues from the current page with retry logic"""
         venues = []
 
         try:
@@ -374,7 +374,7 @@ class TheKnotVenueScraper:
 
                             # Scroll into view for lazy loading
                             self.driver.execute_script("arguments[0].scrollIntoView({block: 'center', behavior: 'smooth'});", venue_elem)
-                            time.sleep(0.3)
+                            time.sleep(0.5)
 
                             venue_data = self.extract_venue_data(venue_elem)
                             if venue_data:
@@ -384,8 +384,52 @@ class TheKnotVenueScraper:
 
             print()  # New line after progress
 
+        except TimeoutException as e:
+            print(f"\n  ⏱️  Timeout during venue extraction: {e}")
+
+            # Retry if we haven't exceeded max retries
+            if retry_count < max_retries:
+                wait_time = 3 * (retry_count + 1)  # 3s, 6s
+                print(f"  ⏳ Waiting {wait_time}s before retry {retry_count + 1}/{max_retries}...")
+                time.sleep(wait_time)
+
+                # Refresh the page to clear any hanging state
+                try:
+                    print(f"  🔄 Refreshing page...")
+                    self.driver.refresh()
+                    time.sleep(3)
+                    return self.get_venues_on_page(retry_count + 1, max_retries)
+                except Exception as refresh_error:
+                    print(f"  ❌ Failed to refresh page: {refresh_error}")
+                    return venues
+            else:
+                print(f"  ⚠️  Max retries exceeded for this page, continuing with {len(venues)} venues")
+                return venues
+
         except Exception as e:
-            print(f"  ❌ Error getting venues: {e}")
+            # Check if it's a timeout-related error
+            if "timeout" in str(e).lower() or "timed out" in str(e).lower():
+                print(f"\n  ⏱️  Timeout during venue extraction: {e}")
+
+                if retry_count < max_retries:
+                    wait_time = 3 * (retry_count + 1)
+                    print(f"  ⏳ Waiting {wait_time}s before retry {retry_count + 1}/{max_retries}...")
+                    time.sleep(wait_time)
+
+                    try:
+                        print(f"  🔄 Refreshing page...")
+                        self.driver.refresh()
+                        time.sleep(3)
+                        return self.get_venues_on_page(retry_count + 1, max_retries)
+                    except Exception as refresh_error:
+                        print(f"  ❌ Failed to refresh page: {refresh_error}")
+                        return venues
+                else:
+                    print(f"  ⚠️  Max retries exceeded for this page, continuing with {len(venues)} venues")
+                    return venues
+            else:
+                print(f"\n  ❌ Error getting venues: {e}")
+                return venues
 
         return venues
 
