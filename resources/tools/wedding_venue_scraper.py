@@ -393,21 +393,28 @@ class TheKnotVenueScraper:
         """Try clicking a button using a specific method and verify the page changed"""
         try:
             # Get reference to first venue element (not just text) for staleness detection
+            original_venue_name = ""
+            first_venue_elem = None
+
             try:
                 first_venue_elem = self.driver.find_element(By.CSS_SELECTOR, "section[data-testid='vendor-card-base']")
                 original_venue_name = first_venue_elem.find_element(By.CSS_SELECTOR, "[class*='vendor-name']").text.strip()
-            except:
-                first_venue_elem = None
-                original_venue_name = ""
+            except (NoSuchElementException, StaleElementReferenceException):
+                # If we can't get the original venue, that's okay - we'll just check for staleness
+                pass
 
             # Perform the click
-            if method_name == "javascript":
-                self.driver.execute_script("arguments[0].click();", button)
-            elif method_name == "action_chains":
-                actions = ActionChains(self.driver)
-                actions.move_to_element(button).click().perform()
-            elif method_name == "regular":
-                button.click()
+            try:
+                if method_name == "javascript":
+                    self.driver.execute_script("arguments[0].click();", button)
+                elif method_name == "action_chains":
+                    actions = ActionChains(self.driver)
+                    actions.move_to_element(button).click().perform()
+                elif method_name == "regular":
+                    button.click()
+            except StaleElementReferenceException:
+                print(f"    ⚠️  Button became stale before {method_name} click")
+                return False
 
             print(f"    ⏳ Clicked with {method_name}, waiting for DOM update...")
 
@@ -418,6 +425,9 @@ class TheKnotVenueScraper:
                     print(f"    ✓ DOM updated (element became stale)")
                 except TimeoutException:
                     print(f"    ⚠️  Element didn't become stale after {method_name} click")
+                except StaleElementReferenceException:
+                    # Element is already stale, which is actually good - means page updated
+                    print(f"    ✓ DOM updated (element already stale)")
 
             # Additional wait for new content to render
             time.sleep(2)
@@ -430,11 +440,15 @@ class TheKnotVenueScraper:
                 if original_venue_name and new_venue_name and new_venue_name != original_venue_name:
                     print(f"    ✅ Success! Page changed ('{original_venue_name[:25]}...' → '{new_venue_name[:25]}...')")
                     return True
+                elif not original_venue_name:
+                    # If we couldn't get original name, assume success if we found new venues
+                    print(f"    ✅ Success! Found venues on new page")
+                    return True
                 else:
                     print(f"    ⚠️  First venue unchanged with {method_name}: '{original_venue_name[:30]}...'")
                     return False
-            except:
-                print(f"    ⚠️  Could not verify change with {method_name}")
+            except (NoSuchElementException, StaleElementReferenceException) as e:
+                print(f"    ⚠️  Could not verify change with {method_name}: {e}")
                 return False
 
         except Exception as e:
