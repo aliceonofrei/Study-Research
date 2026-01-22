@@ -419,18 +419,30 @@ class TheKnotVenueScraper:
             print(f"    ⏳ Clicked with {method_name}, waiting for DOM update...")
 
             # Wait for the element to become stale (indicating page updated)
+            page_changed = False
             if first_venue_elem:
                 try:
                     WebDriverWait(self.driver, 10).until(EC.staleness_of(first_venue_elem))
                     print(f"    ✓ DOM updated (element became stale)")
+                    page_changed = True
                 except TimeoutException:
                     print(f"    ⚠️  Element didn't become stale after {method_name} click")
                 except StaleElementReferenceException:
                     # Element is already stale, which is actually good - means page updated
                     print(f"    ✓ DOM updated (element already stale)")
+                    page_changed = True
 
-            # Additional wait for new content to render
-            time.sleep(2)
+            # If page changed, wait for new venue cards to load
+            if page_changed:
+                try:
+                    # Wait up to 10 seconds for new venue cards to appear
+                    WebDriverWait(self.driver, 10).until(
+                        EC.presence_of_element_located((By.CSS_SELECTOR, "section[data-testid='vendor-card-base']"))
+                    )
+                    time.sleep(2)  # Additional wait for content to fully render
+                except TimeoutException:
+                    print(f"    ⚠️  New venue cards didn't load after {method_name} click")
+                    return False
 
             # Verify content actually changed by comparing venue names
             try:
@@ -440,8 +452,8 @@ class TheKnotVenueScraper:
                 if original_venue_name and new_venue_name and new_venue_name != original_venue_name:
                     print(f"    ✅ Success! Page changed ('{original_venue_name[:25]}...' → '{new_venue_name[:25]}...')")
                     return True
-                elif not original_venue_name:
-                    # If we couldn't get original name, assume success if we found new venues
+                elif not original_venue_name and page_changed:
+                    # If we couldn't get original name but page changed, assume success if we found new venues
                     print(f"    ✅ Success! Found venues on new page")
                     return True
                 else:
