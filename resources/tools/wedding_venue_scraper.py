@@ -773,8 +773,8 @@ def main():
         # For testing, you can limit the number of cities:
         # scraper.scrape_all_cities(start_index=0, limit=3)
 
-        # To scrape all cities:
-        scraper.scrape_all_cities()
+        # Resume from Birmingham, AL (index 123 = 124th city)
+        scraper.scrape_all_cities(start_index=123)
 
         # Export results
         scraper.export_to_csv("wedding_venues_outdoor_data.csv")
