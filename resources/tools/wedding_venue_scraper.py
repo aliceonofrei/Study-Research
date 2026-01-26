@@ -779,14 +779,75 @@ class TheKnotVenueScraper:
 
         return city_venues
 
-    def scrape_all_cities(self, start_index: int = 0, limit: Optional[int] = None):
-        """Scrape venues for all cities in the list"""
+    def load_existing_data(self, filename: str) -> set:
+        """Load existing CSV and return set of already-scraped cities"""
+        already_scraped = set()
+
+        try:
+            if not os.path.exists(filename):
+                print(f"📄 No existing file found at {filename}")
+                return already_scraped
+
+            with open(filename, 'r', newline='', encoding='utf-8') as csvfile:
+                reader = csv.DictReader(csvfile)
+                venues_loaded = 0
+
+                for row in reader:
+                    city = row.get('search_city', '')
+                    state = row.get('search_state', '')
+                    if city and state:
+                        already_scraped.add((city, state))
+                        self.all_venues.append(row)
+                        venues_loaded += 1
+
+                print(f"✅ Loaded {venues_loaded} existing venues from {filename}")
+                print(f"✅ Already scraped {len(already_scraped)} cities")
+
+        except Exception as e:
+            print(f"⚠️  Error loading existing data: {e}")
+
+        return already_scraped
+
+    def save_incrementally(self, filename: str):
+        """Save current data immediately (auto-save after each city)"""
+        try:
+            if not self.all_venues:
+                return
+
+            fieldnames = ['search_city', 'search_state', 'name', 'location', 'city_area', 'rating', 'num_reviews']
+
+            with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                writer.writeheader()
+
+                for venue in self.all_venues:
+                    writer.writerow(venue)
+
+            # Silent save - no output to avoid cluttering logs
+
+        except Exception as e:
+            print(f"⚠️  Auto-save failed: {e}")
+
+    def scrape_all_cities(self, start_index: int = 0, limit: Optional[int] = None, output_file: str = "wedding_venues_outdoor_data.csv"):
+        """Scrape venues for all cities with auto-save after each city"""
         print(f"🚀 Starting scrape for {len(self.CITIES)} cities...")
         print(f"⏰ This may take several hours to complete")
+        print(f"💾 Auto-save enabled: Data saved after every city to {output_file}")
+
+        # Load existing data if file exists
+        already_scraped = self.load_existing_data(output_file)
 
         cities_to_scrape = self.CITIES[start_index:start_index + limit] if limit else self.CITIES[start_index:]
 
         for idx, (city, state) in enumerate(cities_to_scrape, start=start_index + 1):
+            # Skip if already scraped
+            if (city, state) in already_scraped:
+                print(f"\n{'='*60}")
+                print(f"Progress: {idx}/{len(self.CITIES)} cities")
+                print(f"{'='*60}")
+                print(f"⏭️  Skipping {city}, {state} (already scraped)")
+                continue
+
             print(f"\n{'='*60}")
             print(f"Progress: {idx}/{len(self.CITIES)} cities")
             print(f"{'='*60}")
@@ -797,7 +858,13 @@ class TheKnotVenueScraper:
             # Show cumulative progress
             print(f"📈 Total venues collected so far: {len(self.all_venues)}")
 
+            # AUTO-SAVE after every city
+            print(f"💾 Auto-saving to {output_file}...")
+            self.save_incrementally(output_file)
+            print(f"✅ Saved! Safe to stop anytime with Ctrl+C")
+
         print(f"\n🎉 Scraping complete! Total venues collected: {len(self.all_venues)}")
+
 
     def export_to_csv(self, filename: str = "wedding_venues_data.csv"):
         """Export collected venue data to CSV"""
