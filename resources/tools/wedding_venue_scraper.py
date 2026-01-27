@@ -19,6 +19,7 @@ Date: 2026-01-20
 import time
 import csv
 import re
+import os
 from typing import List, Dict, Optional
 from urllib.parse import quote
 from selenium import webdriver
