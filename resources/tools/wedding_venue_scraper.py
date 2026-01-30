@@ -39,7 +39,7 @@ from selenium.webdriver.chrome.service import Service
 class TheKnotVenueScraper:
     """Scraper for The Knot wedding venue listings"""
 
-    BASE_URL = "https://www.theknot.com/marketplace/wedding-reception-venues-{}-{}?venue-amenities=uncovered-outdoor-wedding-reception-site+covered-outdoor-wedding-reception-site&sort=recommended"
+    BASE_URL_TEMPLATE = "https://www.theknot.com/marketplace/wedding-reception-venues-{}-{}?{price_param}venue-amenities=uncovered-outdoor-wedding-reception-site+covered-outdoor-wedding-reception-site&sort=recommended"
 
     # List of all cities to scrape
     CITIES = [
@@ -170,11 +170,23 @@ class TheKnotVenueScraper:
         ("Rock Hill", "SC"), ("Bismarck", "ND"), ("Lauderhill", "FL"), ("Bolingbrook", "IL")
     ]
 
-    def __init__(self, headless: bool = True):
-        """Initialize the scraper with Chrome WebDriver"""
+    def __init__(self, headless: bool = True, price_range: Optional[str] = None):
+        """Initialize the scraper with Chrome WebDriver
+
+        Args:
+            headless: Run browser in headless mode
+            price_range: Optional price filter ('affordable', 'moderate', 'luxury')
+        """
         self.headless = headless
+        self.price_range = price_range
         self.driver = None
         self.all_venues = []
+
+        # Set BASE_URL based on price_range
+        if price_range:
+            self.BASE_URL = self.BASE_URL_TEMPLATE.format("{}", "{}", price_param=f"price_range={price_range}&")
+        else:
+            self.BASE_URL = self.BASE_URL_TEMPLATE.format("{}", "{}", price_param="")
 
     def setup_driver(self):
         """Set up Chrome WebDriver with appropriate options"""
@@ -894,8 +906,11 @@ class TheKnotVenueScraper:
 
 def main():
     """Main execution function"""
+    print("\n" + "=" * 60)
+    print("🏞️  THE KNOT - OUTDOOR WEDDING VENUE SCRAPER")
     print("=" * 60)
-    print("The Knot Wedding Venue Scraper")
+    print("📋 Scraping outdoor venues (covered + uncovered)")
+    print("💾 Output: wedding_venues_outdoor_data.csv")
     print("=" * 60)
 
     scraper = TheKnotVenueScraper(headless=True)
@@ -904,18 +919,17 @@ def main():
         scraper.setup_driver()
 
         # For testing, you can limit the number of cities:
-        # scraper.scrape_all_cities(start_index=0, limit=3)
+        # scraper.scrape_all_cities(start_index=0, limit=3, output_file="wedding_venues_outdoor_data.csv")
 
-        # Resume from Ontario, CA (index 145 = 146th city) - with crash handling
-        scraper.scrape_all_cities(start_index=145)
-
-        # Export results
-        scraper.export_to_csv("wedding_venues_outdoor_data.csv")
+        # Scrape all cities with auto-save
+        scraper.scrape_all_cities(
+            start_index=0,
+            output_file="wedding_venues_outdoor_data.csv"
+        )
 
     except KeyboardInterrupt:
         print("\n\n⚠️  Scraping interrupted by user")
-        print(f"💾 Saving {len(scraper.all_venues)} venues collected so far...")
-        scraper.export_to_csv("wedding_venues_outdoor_data_partial.csv")
+        print(f"💾 Data already saved via auto-save: {len(scraper.all_venues)} venues")
 
     except Exception as e:
         print(f"\n\n❌ Fatal error: {e}")
