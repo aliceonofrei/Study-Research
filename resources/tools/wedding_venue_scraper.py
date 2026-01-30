@@ -39,7 +39,7 @@ from selenium.webdriver.chrome.service import Service
 class TheKnotVenueScraper:
     """Scraper for The Knot wedding venue listings"""
 
-    BASE_URL_TEMPLATE = "https://www.theknot.com/marketplace/wedding-reception-venues-{}-{}?{price_param}venue-amenities=uncovered-outdoor-wedding-reception-site+covered-outdoor-wedding-reception-site&sort=recommended"
+    BASE_URL = "https://www.theknot.com/marketplace/wedding-reception-venues-{}-{}?venue-amenities=uncovered-outdoor-wedding-reception-site+covered-outdoor-wedding-reception-site&sort=recommended"
 
     # List of all cities to scrape
     CITIES = [
@@ -170,23 +170,11 @@ class TheKnotVenueScraper:
         ("Rock Hill", "SC"), ("Bismarck", "ND"), ("Lauderhill", "FL"), ("Bolingbrook", "IL")
     ]
 
-    def __init__(self, headless: bool = True, price_range: Optional[str] = None):
-        """Initialize the scraper with Chrome WebDriver
-
-        Args:
-            headless: Run browser in headless mode
-            price_range: Optional price filter ('affordable', 'moderate', 'luxury')
-        """
+    def __init__(self, headless: bool = True):
+        """Initialize the scraper with Chrome WebDriver"""
         self.headless = headless
-        self.price_range = price_range
         self.driver = None
         self.all_venues = []
-
-        # Set BASE_URL based on price_range
-        if price_range:
-            self.BASE_URL = self.BASE_URL_TEMPLATE.format("{}", "{}", price_param=f"price_range={price_range}&")
-        else:
-            self.BASE_URL = self.BASE_URL_TEMPLATE.format("{}", "{}", price_param="")
 
     def setup_driver(self):
         """Set up Chrome WebDriver with appropriate options"""
