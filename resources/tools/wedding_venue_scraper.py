@@ -655,6 +655,7 @@ class TheKnotVenueScraper:
         print(f"\n🔍 Scraping {city}, {state}..." + (f" (retry {retry_count}/{max_retries})" if retry_count > 0 else ""))
 
         url = self.format_city_url(city, state)
+        print(f"  🌐 URL: {url}")
         city_venues = []
         seen_venue_keys = set()  # Track (name, location) tuples to detect duplicates/loops
         page_num = 1
@@ -665,7 +666,26 @@ class TheKnotVenueScraper:
 
             if not self.wait_for_page_load():
                 print(f"  ⚠️  No venues found for {city}, {state}")
-                return city_venues
+
+                # IMPORTANT: Try alternatives even when no venues found!
+                if retry_count == 0:  # Only try alternatives on first attempt
+                    alternatives = self.get_alternative_city_names(city)
+                    if alternatives:
+                        print(f"  🔄 No results with '{city}' - trying alternative spellings...")
+
+                        for alt_city in alternatives:
+                            print(f"  🔄 Trying alternative: {alt_city}, {state}")
+                            alt_venues = self.scrape_city(alt_city, state, retry_count=999, max_retries=999)  # High retry_count to skip alternative checking
+
+                            if alt_venues:  # If we found venues with this alternative
+                                print(f"     ✅ Found {len(alt_venues)} venues with '{alt_city}' - using this version!")
+                                return alt_venues
+                            else:
+                                print(f"     No venues found with '{alt_city}'")
+
+                        print(f"  ⚠️  No results found with any spelling variation")
+
+                return city_venues  # Return empty list
 
             consecutive_duplicate_pages = 0
 
