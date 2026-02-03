@@ -562,6 +562,28 @@ class TheKnotVenueScraper:
             print(f"  ⚠️  Error navigating to next page: {e}")
             return False
 
+    def get_alternative_city_names(self, city: str) -> List[str]:
+        """Generate alternative spellings for a city name"""
+        alternatives = []
+
+        # If city has "St.", try "Saint"
+        if "St." in city:
+            alternatives.append(city.replace("St.", "Saint"))
+
+        # If city has "Saint", try "St."
+        if "Saint" in city:
+            alternatives.append(city.replace("Saint", "St."))
+
+        # Special case: "Boise City" -> try just "Boise"
+        if city == "Boise City":
+            alternatives.append("Boise")
+
+        # Special case: "Boise" -> try "Boise City"
+        if city == "Boise":
+            alternatives.append("Boise City")
+
+        return alternatives
+
     def scrape_city(self, city: str, state: str, retry_count: int = 0, max_retries: int = 3) -> List[Dict]:
         """Scrape all venues for a given city with retry logic"""
         print(f"\n🔍 Scraping {city}, {state}..." + (f" (retry {retry_count}/{max_retries})" if retry_count > 0 else ""))
@@ -634,6 +656,41 @@ class TheKnotVenueScraper:
 
             print(f"✅ Total venues found for {city}, {state}: {len(city_venues)}")
             print(f"   Unique venues: {len(seen_venue_keys)}")
+
+            # If we got very few results, try alternative spellings
+            if len(seen_venue_keys) < 5 and retry_count == 0:  # Only try alternatives on first attempt
+                alternatives = self.get_alternative_city_names(city)
+                if alternatives:
+                    print(f"  ⚠️  Low result count ({len(seen_venue_keys)} venues) - trying alternative spellings...")
+
+                    best_results = city_venues
+                    best_count = len(seen_venue_keys)
+                    best_city_name = city
+
+                    for alt_city in alternatives:
+                        print(f"  🔄 Trying alternative: {alt_city}, {state}")
+                        alt_venues = self.scrape_city(alt_city, state, retry_count=999, max_retries=999)  # High retry_count to skip alternative checking
+
+                        # Count unique venues in alternative results
+                        alt_unique = set()
+                        for venue in alt_venues:
+                            venue_key = (venue.get('name', ''), venue.get('location', ''))
+                            alt_unique.add(venue_key)
+
+                        print(f"     Found {len(alt_unique)} unique venues with '{alt_city}'")
+
+                        if len(alt_unique) > best_count:
+                            best_results = alt_venues
+                            best_count = len(alt_unique)
+                            best_city_name = alt_city
+                            print(f"     ✅ Better results with '{alt_city}' - using this version")
+
+                    # Use the best results
+                    if best_city_name != city:
+                        print(f"  ✅ Using results from '{best_city_name}' ({best_count} venues vs {len(seen_venue_keys)})")
+                        return best_results
+                    else:
+                        print(f"  ℹ️  Original spelling '{city}' had the best results")
 
         except TimeoutException as e:
             print(f"⏱️  Timeout error for {city}, {state}: {e}")
