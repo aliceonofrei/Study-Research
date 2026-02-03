@@ -563,58 +563,88 @@ class TheKnotVenueScraper:
             return False
 
     def get_alternative_city_names(self, city: str) -> List[str]:
-        """Generate alternative spellings for a city name"""
+        """Generate alternative spellings for a city name
+
+        This generates variations that will produce DIFFERENT URLs after format_city_url processes them
+        """
         alternatives = []
 
-        # For apostrophes (O'Fallon)
+        # For apostrophes (O'Fallon, Lee's Summit)
         if "'" in city:
-            # Try without apostrophe: O'Fallon -> OFallon
-            alternatives.append(city.replace("'", ""))
-            # Try with space: O'Fallon -> O Fallon
-            alternatives.append(city.replace("'", " "))
+            # Remove apostrophe: O'Fallon -> OFallon
+            no_apostrophe = city.replace("'", "")
+            alternatives.append(no_apostrophe)
 
-        # For "St." variations
+            # Replace apostrophe with space: O'Fallon -> O Fallon (becomes o-fallon in URL)
+            with_space = city.replace("'", " ")
+            alternatives.append(with_space)
+
+            # Replace apostrophe with hyphen directly
+            with_hyphen = city.replace("'", "-")
+            alternatives.append(with_hyphen)
+
+        # For "St." variations (St. Louis, St. Paul, St. Petersburg, St. George, Port St. Lucie)
         if "St." in city:
-            # Try "Saint"
+            # Try "Saint" (full word)
             alternatives.append(city.replace("St.", "Saint"))
-            # Try "St" (no period)
+
+            # Try "St" without period
             alternatives.append(city.replace("St.", "St"))
 
-        # For "Saint" variations
-        if "Saint" in city:
-            # Try "St."
+        # For "Saint" (if someone passes it that way)
+        if "Saint" in city and "St." not in city:
             alternatives.append(city.replace("Saint", "St."))
-            # Try "St" (no period)
             alternatives.append(city.replace("Saint", "St"))
 
-        # For multi-word cities with spaces
-        if " " in city and "'" not in city:  # Don't apply to already-apostrophe cities
-            # Try without spaces: "Grand Rapids" -> "GrandRapids"
-            alternatives.append(city.replace(" ", ""))
-            # Try with hyphens: "Grand Rapids" -> "Grand-Rapids"
-            alternatives.append(city.replace(" ", "-"))
+        # For "Fort" (Fort Collins, Fort Wayne, etc.)
+        if city.startswith("Fort "):
+            alternatives.append(city.replace("Fort ", "Ft. "))
+            alternatives.append(city.replace("Fort ", "Ft "))
 
-        # Special cases
+        # For "El" prefix (El Cajon)
+        if city.startswith("El "):
+            # Try without space: "El Cajon" -> "ElCajon" -> "elcajon" in URL
+            alternatives.append(city.replace("El ", "El"))
+            # Try just the second part: "El Cajon" -> "Cajon"
+            alternatives.append(city[3:])  # Remove "El "
+
+        # For multi-word cities - try without hyphen/space
+        if " " in city and "'" not in city:
+            # Remove all spaces: "Grand Rapids" -> "GrandRapids" -> "grandrapids" in URL
+            alternatives.append(city.replace(" ", ""))
+
+        # For "Johns Creek" specifically - try with apostrophe
+        if city == "Johns Creek":
+            alternatives.append("John's Creek")
+            alternatives.append("JohnsCreek")
+
+        # For "Federal Way" - try without space
+        if city == "Federal Way":
+            alternatives.append("FederalWay")
+
+        # For "Grand Rapids" - try without space
+        if city == "Grand Rapids":
+            alternatives.append("GrandRapids")
+
+        # For "Sioux Falls" - try without space
+        if city == "Sioux Falls":
+            alternatives.append("SiouxFalls")
+
+        # Special case: Boise City
         if city == "Boise City":
             alternatives.append("Boise")
         if city == "Boise":
             alternatives.append("Boise City")
 
-        # For "Fort" - try "Ft" and "Ft."
-        if city.startswith("Fort "):
-            alternatives.append(city.replace("Fort ", "Ft. "))
-            alternatives.append(city.replace("Fort ", "Ft "))
-
-        # For hyphenated cities, try without hyphen
-        if "-" in city:
-            alternatives.append(city.replace("-", " "))
-            alternatives.append(city.replace("-", ""))
+        # For "Parma" - try common misspellings
+        if city == "Parma":
+            alternatives.append("Parma Heights")
 
         # Remove duplicates while preserving order
         seen = set()
         unique_alternatives = []
         for alt in alternatives:
-            if alt != city and alt not in seen:  # Don't include original city
+            if alt != city and alt not in seen:
                 seen.add(alt)
                 unique_alternatives.append(alt)
 
