@@ -566,23 +566,59 @@ class TheKnotVenueScraper:
         """Generate alternative spellings for a city name"""
         alternatives = []
 
-        # If city has "St.", try "Saint"
+        # For apostrophes (O'Fallon)
+        if "'" in city:
+            # Try without apostrophe: O'Fallon -> OFallon
+            alternatives.append(city.replace("'", ""))
+            # Try with space: O'Fallon -> O Fallon
+            alternatives.append(city.replace("'", " "))
+
+        # For "St." variations
         if "St." in city:
+            # Try "Saint"
             alternatives.append(city.replace("St.", "Saint"))
+            # Try "St" (no period)
+            alternatives.append(city.replace("St.", "St"))
 
-        # If city has "Saint", try "St."
+        # For "Saint" variations
         if "Saint" in city:
+            # Try "St."
             alternatives.append(city.replace("Saint", "St."))
+            # Try "St" (no period)
+            alternatives.append(city.replace("Saint", "St"))
 
-        # Special case: "Boise City" -> try just "Boise"
+        # For multi-word cities with spaces
+        if " " in city and "'" not in city:  # Don't apply to already-apostrophe cities
+            # Try without spaces: "Grand Rapids" -> "GrandRapids"
+            alternatives.append(city.replace(" ", ""))
+            # Try with hyphens: "Grand Rapids" -> "Grand-Rapids"
+            alternatives.append(city.replace(" ", "-"))
+
+        # Special cases
         if city == "Boise City":
             alternatives.append("Boise")
-
-        # Special case: "Boise" -> try "Boise City"
         if city == "Boise":
             alternatives.append("Boise City")
 
-        return alternatives
+        # For "Fort" - try "Ft" and "Ft."
+        if city.startswith("Fort "):
+            alternatives.append(city.replace("Fort ", "Ft. "))
+            alternatives.append(city.replace("Fort ", "Ft "))
+
+        # For hyphenated cities, try without hyphen
+        if "-" in city:
+            alternatives.append(city.replace("-", " "))
+            alternatives.append(city.replace("-", ""))
+
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_alternatives = []
+        for alt in alternatives:
+            if alt != city and alt not in seen:  # Don't include original city
+                seen.add(alt)
+                unique_alternatives.append(alt)
+
+        return unique_alternatives
 
     def scrape_city(self, city: str, state: str, retry_count: int = 0, max_retries: int = 3) -> List[Dict]:
         """Scrape all venues for a given city with retry logic"""
