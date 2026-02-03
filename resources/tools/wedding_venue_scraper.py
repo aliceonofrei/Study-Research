@@ -195,8 +195,25 @@ class TheKnotVenueScraper:
 
     def format_city_url(self, city: str, state: str) -> str:
         """Format city and state for The Knot URL structure"""
-        # Convert "New York" to "new-york"
-        city_formatted = city.lower().replace(" ", "-").replace("'", "")
+        city_formatted = city.lower()
+
+        # Handle special formatting cases
+        # Replace "St." with "saint"
+        city_formatted = city_formatted.replace("st. ", "saint-")
+
+        # Handle "Boise City" -> "boise"
+        if city_formatted == "boise city":
+            city_formatted = "boise"
+
+        # Convert spaces to hyphens
+        city_formatted = city_formatted.replace(" ", "-")
+
+        # Remove apostrophes (O'Fallon -> ofallon)
+        city_formatted = city_formatted.replace("'", "")
+
+        # Remove periods
+        city_formatted = city_formatted.replace(".", "")
+
         state_formatted = state.lower()
 
         return self.BASE_URL.format(city_formatted, state_formatted)
